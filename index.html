@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fretboard</title>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@100&family=Zen+Dots&display=swap" rel="stylesheet">
+    <style>
+        * {
+          font-family: 'Zen Dots', sans-serif;
+        }
+        h1 {
+          color: steelblue;
+        }
+        rect.cell {
+          stroke: steelblue;
+          stroke-width: 1;
+          fill: none;
+        }
+        .note {
+          stroke: steelblue;
+          stroke-width: 1;
+        }
+        text.string-name {
+            stroke: steelblue;
+            font-size: 16px;
+            alignment-baseline: middle;
+            text-anchor: middle;
+        }
+        text.fret-name {
+            stroke: steelblue;
+            font-size: 16px;
+            alignment-baseline: middle;
+            text-anchor: middle;
+        }
+        text.note-name {
+            font-size: 12px;
+            alignment-baseline: middle;
+            text-anchor: middle;
+        }
+        /* The top level menu allow to select key, momde, color scheme, etc. */
+        .menu {
+          display: block;
+          margin-left: 32px;
+          margin-bottom: 40px;
+          margin-top: 24px;
+        }
+        /* A filter (drop down) in the menu */
+        .filter {
+          display: inline-block;
+          margin-right: 24px;
+        }
+        .filter select {
+          width: 160px;
+        }
+    </style>
+</head>
+<body>
+
+<script>
+  const version = "0.0.1";
+
+  const FLAT = "♭";
+  const SHARP = "♯";
+
+  const noteNames = [ "C", "C" + SHARP, "D", "E" + FLAT, "E", "F", "F" + SHARP, "G", "G" + SHARP, "A", "B" + FLAT, "B" ];
+
+  const major = [ 2, 2, 1, 2, 2, 2, 1 ];
+  const minor_natural = [ 2, 1, 2, 2, 1, 2, 2 ];
+  const minor_melodic = [ 2, 1, 2, 2, 2, 2, 1 ];
+  const minor_harmonic = [ 2, 1, 2, 2, 1, 3, 1 ];
+  const pentatonic = [ 2, 2, 3, 2, 3 ];
+  const roots = [ 12 ];
+
+  const color_any = "LightGray";
+  const color_root = "LightPink";
+  const color_third = "LightGreen";
+  const color_fifth = "LightBlue";
+
+  // color schemas
+  const scheme_uni = "uni";
+  const scheme_root = "root";
+  const scheme_135 = "135";
+
+  // shapes
+  const g_shape = [ [ 0, 3], [ 0, 2 ], [ 0, 2 ], [ 0, 2 ], [ 0, 3 ], [ 0, 3 ] ];
+  const c_shape = [ [ 0, 3], [ 0, 3 ], [ 0, 2 ], [ 0, 2 ], [ 1, 3 ], [ 0, 3 ] ];
+  const a_shape = [ [ 1, 3], [ 1, 3 ], [ 0, 3 ], [ 0, 3 ], [ 1, 3 ], [ 1, 3 ] ];
+  const e_shape = [ [ 1, 3], [ 0, 3 ], [ 0, 3 ], [ 0, 2 ], [ 1, 3 ], [ 1, 3 ] ];
+  const d_shape = [ [ 1, 3], [ 1, 3 ], [ 1, 3 ], [ 0, 3 ], [ 1, 4 ], [ 1, 3 ] ];
+
+  let key = "C";
+  let mode = "major";
+  let colorScheme = scheme_135;
+  let tuning = "EADGBE";
+  let highlightedShapes = [ "g_shape" ];
+
+  const fretCount = 18;
+  const width = 1200;
+  const height = 600;
+  const fretWidth = 48;
+  const fretHeight = 48;
+  const fretMarginTop = 80
+  const fretMarginLeft = 100
+
+
+
+  const modes = [
+    { name: "major", label: "Major", steps: major },
+    { name: "minor_natural", label: "Minor Natural", steps: minor_natural },
+    { name: "minor_melodic", label: "Minor Melodic", steps: minor_melodic },
+    { name: "minor_harmonic", label: "Minor Harmonic", steps: minor_harmonic },
+    { name: "pentatonic", label: "Pentatonic", steps: pentatonic },
+    { name: "roots", label: "Roots", steps: roots },
+  ];
+
+  const tunings = [
+    { name: "EADGBE", value: "EADGBE" }
+  ];
+
+  const keys = [
+    { name: "A", label: "A" },
+    { name: `B${FLAT}`, label: `A${SHARP}/B${FLAT}` },
+    { name: "B", label: "B" },
+    { name: "C", label: "C" },
+    { name: `C${SHARP}`, label: `C${SHARP}/D${FLAT}` },
+    { name: "D", label: "D" },
+    { name: `E${FLAT}`, label: `D${SHARP}/E${FLAT}` },
+    { name: "E", label: "E" },
+    { name: "F", label: "F" },
+    { name: `F${SHARP}`, label: `F${SHARP}/G${FLAT}` },
+    { name: "G", label: "G" },
+    { name: `G${SHARP}`, label: `G${SHARP}/A${FLAT}` },
+  ];
+
+  const colorSchemes = [
+    { name: scheme_uni, label: "Solid" },
+    { name: scheme_root, label: "Root" },
+    { name: scheme_135, label: "1-3-5" },
+  ];
+
+  const shapes = [
+    { name: "g_shape", label: "G shape", shape: g_shape },
+    { name: "c_shape", label: "C shape", shape: c_shape },
+    { name: "a_shape", label: "A shape", shape: a_shape },
+    { name: "e_shape", label: "E shape", shape: e_shape },
+    { name: "d_shape", label: "D shape", shape: d_shape },
+  ];
+
+</script>
+
+<h1 id="title">Fretboard</h1>
+<div class="menu">
+  <div class="filter">
+  <label for="key">Key:&nbsp;</label>
+  <select name="key" id="key">
+  </select>
+  </div>
+  <div class="filter">
+  <label for="mode">Mode:&nbsp;</label>
+  <select name="mode" id="mode">
+  </select>
+  </div>
+  <div class="filter">
+  <label for="color">Color scheme:&nbsp;</label>
+  <select name="color" id="color">
+  </select>
+  </div>
+  <div class="filter">
+  <label for="tuning">Tuning:&nbsp;</label>
+  <select name="tuning" id="tuning">
+  </select>
+  </div>  
+  <div class="boxes" id="shapes">
+  </div>
+</div>
+
+
+<script>
+  const title = document.getElementById("title");
+  title.innerHTML = `Fretboard ${version}`;
+
+  const onKeyChanged = (newKey) => {
+    key = newKey;
+    render();
+  }
+  const onModeChanged = (newMode) => {
+    mode = newMode;
+    render();
+  }
+  const onColorSchemeChanged = (newColorScheme) => {
+    colorScheme = newColorScheme;
+    render();
+  }
+  const onTuningChanged = (newTuning) => {
+    tuning = newTuning;
+    render();
+  }
+  const onShapeChanged = (shape, checked) => {
+    highlightedShapes = highlightedShapes.filter(s => s != shape);
+    if (checked)
+        highlightedShapes.push(shape);
+    render();
+  }
+
+  let select = document.getElementById("mode");
+  for (const theMode of modes) {
+    let option = document.createElement("option");
+    option.value = theMode.name;
+    option.text = theMode.label;
+    if (theMode.name == mode)
+      option.selected = true;
+    select.appendChild(option);
+  }
+  select.addEventListener('change', () => { 
+    const selectedValue = document.getElementById('mode').value;
+    onModeChanged(selectedValue); 
+  });
+
+  select = document.getElementById("key");
+  for (const theKey of keys) {
+    let option = document.createElement("option");
+    option.value = theKey.name;
+    option.text = theKey.label;
+    if (theKey.name == key)
+      option.selected = true;
+    select.appendChild(option);
+  }
+  select.addEventListener('change', () => { 
+    const selectedValue = document.getElementById('key').value;
+    onKeyChanged(selectedValue); 
+  });
+
+  select = document.getElementById("color");
+  for (const color of colorSchemes) {
+    let option = document.createElement("option");
+    option.value = color.name;
+    option.text = color.label;
+    if (color.name == colorScheme)
+      option.selected = true;
+    select.appendChild(option);
+  }
+  select.addEventListener('change', () => { 
+    const selectedValue = document.getElementById('color').value;
+    onColorSchemeChanged(selectedValue); 
+  });
+
+  select = document.getElementById("tuning");
+  for (const theTuning of tunings) {
+    let option = document.createElement("option");
+    option.value = theTuning.value;
+    option.text = theTuning.name;
+    if (theTuning.value == tuning)
+      option.selected = true;
+    select.appendChild(option);
+  }
+  select.addEventListener('change', () => { 
+    const selectedValue = document.getElementById('tuning').value;
+    onTuningChanged(selectedValue); 
+  });
+
+  select = document.getElementById("shapes");
+  for (const theShape of shapes) {
+    let checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.name = theShape.name;
+    checkbox.value = theShape.name;
+    checkbox.id = theShape.name;
+    checkbox.checked = highlightedShapes.includes(theShape.name);
+    checkbox.addEventListener('change', () => { 
+      const checked = document.getElementById(theShape.name).checked;
+      onShapeChanged(theShape.name, checked);
+    });
+    let label = document.createElement('label')
+    label.htmlFor = theShape.name;
+    label.appendChild(document.createTextNode(theShape.label));
+    select.appendChild(checkbox);
+    select.appendChild(label);
+  }
+
+</script>
+
+<script>
+  const noteColor = (d) => {
+    color = color_any;
+    switch (d.colorScheme) {
+      case scheme_uni:          
+        break;
+      case scheme_root:
+        color = d.level == 0 ? color_root : color_any;
+        break;
+      case scheme_135:
+        if (d.level == 0)
+          color = color_root;
+        else if (d.level == 4 || d.level == 3) // 3 for minor
+          color = color_third;
+        else if (d.level == 7)
+          color = color_fifth;
+        break;
+      default:
+        throw new Error("Unknown color scheme: " + d.colorScheme);
+    }
+    //if (d.highlight) color = "yellow"
+    return color;
+  };
+
+
+  const render = () => {
+    const svgContainer = document.getElementById('fretboard-container');
+    svgContainer.innerHTML = '';
+
+    steps = modes.find(m => m.name == mode).steps;
+
+    const theShapes = highlightedShapes.map(s => shapes.find(sh => sh.name == s)).map(s => s.shape);
+    const notes = fretNotes(tuning, key, steps, n => n.fret > fretCount, theShapes, colorScheme);
+
+    // Create an SVG element and append it to the chart container
+    const svg = d3.select("#fretboard-container")
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    svg.selectAll("text.fret-name")
+        .data(frets)
+        .enter()
+        .append("text")
+        .attr("class", "fret-name")
+        .text(d => d.fret)
+        .attr("x", (d, i) => d.fret * fretWidth + fretMarginLeft - fretWidth / 2)
+        .attr("y", d => fretMarginTop - fretHeight)
+        .attr("width", d => fretWidth);
+
+    svg.selectAll("text.string-name")
+        .data(strings)
+        .enter()
+        .append("text")
+        .attr("class", "string-name")
+        .text(d => d.name)
+        .attr("x", (d, i) => fretMarginLeft - fretWidth/2)
+        .attr("y", d => (strings.length - d.string) * fretHeight + fretMarginTop);
+
+    svg.selectAll("rect.cell")
+        .data(cells)
+        .enter()
+        .append("rect")
+        .attr("class", "cell")
+        .attr("x", (d, i) => d.fret * fretWidth + fretMarginLeft)
+        .attr("y", d => (d.string - 1) * fretHeight + fretMarginTop)
+        .attr("width", d => fretWidth)
+        .attr("height", d => fretHeight);
+
+      svg.selectAll(".note")
+        .data(notes)
+        .enter()
+        .append("circle")
+        .attr("class", "note")
+        .attr("cx", (d, i) => d.fret * fretWidth + fretMarginLeft - fretWidth / 2)
+        .attr("cy", d => (strings.length - d.string) * fretHeight + fretMarginTop)
+        .attr("fill", noteColor)
+        .attr("stroke", noteColor)
+        .attr("opacity", (d) => d.highlight || d.fret == 0 ? 1 : 0.7)
+        .style("stroke-width", (d) => d.highlight ? 3 : 1)
+        .attr("r", d => fretWidth / 2 - 6);
+
+      svg.selectAll(".note-name")
+        .data(notes)
+        .enter()
+        .append("text")
+        .attr("class", "note-name")
+        .text(d => d.name)
+        .attr("x", (d, i) => d.fret * fretWidth + fretMarginLeft - fretWidth / 2)
+        .attr("y", d => (strings.length - d.string) * fretHeight + fretMarginTop + 2);
+
+  }
+</script>
+
+<div id="fretboard-container"></div>
+
+
+<script>
+  // Compute a scale
+  // base is the base tonality (ex: C, F#, etc.)
+  // steps is the sequence of steps to repeat. It's an array. Each value represents how many half tones to step up
+  // start is the first note we want to start writing the scale from. For example start could be the E string of the guitar
+  // stop is a function returning true if we want to stop writing the scale
+  const scale = (base, steps, start, stop) => {
+    const notes = [];
+    let finished = false;
+
+    const add_note = (name, level) => {
+      note = { name, fret, level: level % 12 };
+      finished = stop(note);
+      if (!finished && fret >= 0)
+        notes.push(note);
+    }
+
+    // E chord is 9 steps down from C
+    const offset = noteNames.indexOf(start);
+    let fret = -noteNames.indexOf(start) + noteNames.indexOf(base) - 12;
+    let levelOffset = fret;
+    let i = 0;
+    while (!finished) {
+      const name = noteNames[(noteNames.length + fret + offset) % noteNames.length];
+      add_note(name, (fret - levelOffset + 12) % 12);
+      const step = steps[(steps.length + i) % steps.length]; // how many half steps expected to move from previous note to this note according to the scale
+      fret = fret + step;
+      i = i + 1;
+    }
+    
+    return notes;
+  }
+
+  const fretNotes = (tuning, base, steps, stop, shapes, colorScheme) => {
+    const notes = [];
+    for (let i=0; i<tuning.length; i++) {
+      const note = tuning[tuning.length - i - 1];
+      stringNotes = scale(base, steps, note, stop);
+      for (const n of stringNotes) {
+        notes.push({ ...n, string: i+1, colorScheme });
+      }
+    }
+
+    for (const shape of shapes) {
+      for (let fret = 0; fret < fretCount; fret++) {
+        let found = true;
+        const highlightedNotes = [];
+        for (let string = 1; string <= tuning.length && found; string++) {
+          const pattern = shape[tuning.length - string];
+          for (let p in pattern) {
+            found = notes.find(n => n.string == string && n.fret == fret + pattern[p]);
+            if (!found)
+              break
+              highlightedNotes.push(found);
+          }
+        }
+        if (found) {
+          highlightedNotes.forEach(n => n.highlight = true);
+        }
+      }
+    }
+
+    return notes;
+  }
+</script>
+
+<script>
+
+  const cells = [ ];
+  const strings = [ ];
+  const frets=  [];
+
+  for (let fret = 0; fret < fretCount; fret++) {
+    for (let string = 1; string < 6; string++) {
+      cells.push({ fret, string });
+    }
+  }
+  for (let fret = 0; fret <= fretCount; fret++) {
+    frets.push({ fret });
+  }
+  for (let string = 1; string <= 6; string++) {
+    const name = tuning[string - 1];
+    strings.push({ string, name });
+  }
+
+    //const notes = []
+    /*const scheme = scheme_135;
+    for (n of stringNotes) {
+      notes.push({ ...n, string:1, colorScheme: scheme });
+    }*/
+    //const notes = fretNotes(tuning, "A", pentatonic, n => n.fret > fretCount, scheme_135);
+    //const notes = fretNotes(tuning, "F" + SHARP, roots, n => n.fret > fretCount, scheme_135);
+
+  
+
+
+  render();
+
+</script>
+
+</body>
+</html>
