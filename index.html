@@ -62,18 +62,21 @@
 <body>
 
 <script>
-  const version = "0.0.2";
+  const version = "0.0.3";
 
   const FLAT = "♭";
   const SHARP = "♯";
 
   const noteNames = [ "C", "C" + SHARP, "D", "E" + FLAT, "E", "F", "F" + SHARP, "G", "G" + SHARP, "A", "B" + FLAT, "B" ];
 
+  // Different scales/modes. Each value represents how many half tones to step up
+  // from the previous note
   const major = [ 2, 2, 1, 2, 2, 2, 1 ];
   const minor_natural = [ 2, 1, 2, 2, 1, 2, 2 ];
   const minor_melodic = [ 2, 1, 2, 2, 2, 2, 1 ];
   const minor_harmonic = [ 2, 1, 2, 2, 1, 3, 1 ];
-  const pentatonic = [ 2, 2, 3, 2, 3 ];
+  const major_pentatonic = [ 2, 2, 3, 2, 3 ];
+  const minor_pentatonic = [ 3, 2, 2, 3, 2 ];
   const roots = [ 12 ];
 
   const color_any = "LightGray";
@@ -82,17 +85,22 @@
   const color_fifth = "LightBlue";
 
   // color schemas
-  const scheme_uni = "uni";
-  const scheme_root = "root";
-  const scheme_135 = "135";
+  const scheme_uni = "uni";       // one color
+  const scheme_root = "root";     // highlight root notes
+  const scheme_135 = "135";       // highlight root, third and fifth notes
 
-  // shapes
-  const g_shape = [ [ 0, 3], [ 0, 2 ], [ 0, 2 ], [ 0, 2 ], [ 0, 3 ], [ 0, 3 ] ];
+  // shapes for pentatonic scales
+  // Each shape is an array of 6 arrays (one per guitar string)
+  // Each of the 6 arrays represent the pattern of frets to play on that string
+  // For example: [0, 3] means that the shape/pattern is made of a note on the
+  // starting fret (0) and a note 3 frets higher
   const c_shape = [ [ 0, 3], [ 0, 3 ], [ 0, 2 ], [ 0, 2 ], [ 1, 3 ], [ 0, 3 ] ];
   const a_shape = [ [ 1, 3], [ 1, 3 ], [ 0, 3 ], [ 0, 3 ], [ 1, 3 ], [ 1, 3 ] ];
+  const g_shape = [ [ 0, 3], [ 0, 2 ], [ 0, 2 ], [ 0, 2 ], [ 0, 3 ], [ 0, 3 ] ];
   const e_shape = [ [ 1, 3], [ 0, 3 ], [ 0, 3 ], [ 0, 2 ], [ 1, 3 ], [ 1, 3 ] ];
   const d_shape = [ [ 1, 3], [ 1, 3 ], [ 1, 3 ], [ 0, 3 ], [ 1, 4 ], [ 1, 3 ] ];
 
+  // Current state
   let key = "C";
   let mode = "major";
   let colorScheme = scheme_135;
@@ -107,14 +115,15 @@
   const fretMarginTop = 80
   const fretMarginLeft = 100
 
-
+  // UI elements
 
   const modes = [
     { name: "major", label: "Major", steps: major },
     { name: "minor_natural", label: "Minor Natural", steps: minor_natural },
     { name: "minor_melodic", label: "Minor Melodic", steps: minor_melodic },
     { name: "minor_harmonic", label: "Minor Harmonic", steps: minor_harmonic },
-    { name: "pentatonic", label: "Pentatonic", steps: pentatonic },
+    { name: "major_pentatonic", label: "Major Pentatonic", steps: major_pentatonic },
+    { name: "minor_pentatonic", label: "Minor Pentatonic", steps: minor_pentatonic },
     { name: "roots", label: "Roots", steps: roots },
   ];
 
@@ -144,9 +153,9 @@
   ];
 
   const shapes = [
-    { name: "g_shape", label: "G shape", shape: g_shape },
     { name: "c_shape", label: "C shape", shape: c_shape },
     { name: "a_shape", label: "A shape", shape: a_shape },
+    { name: "g_shape", label: "G shape", shape: g_shape },
     { name: "e_shape", label: "E shape", shape: e_shape },
     { name: "d_shape", label: "D shape", shape: d_shape },
   ];
@@ -285,6 +294,7 @@
 </script>
 
 <script>
+  // Compute the color of a note based on the selected color scheme
   const noteColor = (d) => {
     color = color_any;
     switch (d.colorScheme) {
@@ -304,17 +314,16 @@
       default:
         throw new Error("Unknown color scheme: " + d.colorScheme);
     }
-    //if (d.highlight) color = "yellow"
     return color;
   };
 
-
+  // Re-Render the fret board
   const render = () => {
     const svgContainer = document.getElementById('fretboard-container');
     svgContainer.innerHTML = '';
 
+    // Compute the notes to display on the fretboard
     steps = modes.find(m => m.name == mode).steps;
-
     const theShapes = highlightedShapes.map(s => shapes.find(sh => sh.name == s)).map(s => s.shape);
     const notes = fretNotes(tuning, key, steps, n => n.fret > fretCount, theShapes, colorScheme);
 
@@ -324,6 +333,7 @@
         .attr("width", width)
         .attr("height", height);
 
+    // Fret names (numbers, including 0)
     svg.selectAll("text.fret-name")
         .data(frets)
         .enter()
@@ -334,6 +344,8 @@
         .attr("y", d => fretMarginTop - fretHeight)
         .attr("width", d => fretWidth);
 
+    // String names according to the tuning
+    // String #1 is the thinnest (highest) string
     svg.selectAll("text.string-name")
         .data(strings)
         .enter()
@@ -343,6 +355,7 @@
         .attr("x", (d, i) => fretMarginLeft - fretWidth/2)
         .attr("y", d => (strings.length - d.string) * fretHeight + fretMarginTop);
 
+    // Cells (one rect for each fret/string)
     svg.selectAll("rect.cell")
         .data(cells)
         .enter()
@@ -353,19 +366,21 @@
         .attr("width", d => fretWidth)
         .attr("height", d => fretHeight);
 
+      // Notes (colored circles)
       svg.selectAll(".note")
         .data(notes)
         .enter()
         .append("circle")
         .attr("class", "note")
         .attr("cx", (d, i) => d.fret * fretWidth + fretMarginLeft - fretWidth / 2)
-        .attr("cy", d => (strings.length - d.string) * fretHeight + fretMarginTop)
+        .attr("cy", d => (d.string - 1) * fretHeight + fretMarginTop)
         .attr("fill", noteColor)
         .attr("stroke", noteColor)
         .attr("opacity", (d) => d.highlight || d.fret == 0 ? 1 : 0.7)
         .style("stroke-width", (d) => d.highlight ? 3 : 1)
         .attr("r", d => fretWidth / 2 - 6);
 
+      // Note names
       svg.selectAll(".note-name")
         .data(notes)
         .enter()
@@ -373,7 +388,7 @@
         .attr("class", "note-name")
         .text(d => d.name)
         .attr("x", (d, i) => d.fret * fretWidth + fretMarginLeft - fretWidth / 2)
-        .attr("y", d => (strings.length - d.string) * fretHeight + fretMarginTop + 2);
+        .attr("y", d => (d.string - 1) * fretHeight + fretMarginTop + 2);
 
   }
 </script>
@@ -414,8 +429,19 @@
     return notes;
   }
 
+  // Computes the notes to display on the fretboard
+  // tuning is the fretboard tuning
+  // base is the base tonality (ex: C, F#, etc.)
+  // steps is the sequence of steps to repeat. It's an array. Each value represents how many half tones to step up
+  // stop is a function returning true if we want to stop writing the scale
+  // shapes is an array of shapes to highlight
+  // colorScheme is the color scheme to use
   const fretNotes = (tuning, base, steps, stop, shapes, colorScheme) => {
     const notes = [];
+
+    // For each string, add the notes of the scale according to the 
+    // tuning of the string. Note that tuning goes low to high and
+    // string numbers go high to low
     for (let i=0; i<tuning.length; i++) {
       const note = tuning[tuning.length - i - 1];
       stringNotes = scale(base, steps, note, stop);
@@ -424,6 +450,14 @@
       }
     }
 
+    // Highlight the notes of the shapes. Algorithm is simple:
+    // - iterate over the shapes to highlight
+    // - for each shape, iterate over the frets
+    // - we'll try to see if the shape matches the notes at this fret
+    //      - for each string, check if shape matches
+    //      - if so, record the note as highlighted
+    //      - a shape matches if all strings match
+    // - if the shape match, then mark the correspnding notes as highlighted
     for (const shape of shapes) {
       for (let fret = 0; fret < fretCount; fret++) {
         let found = true;
@@ -449,33 +483,26 @@
 
 <script>
 
+  // Cells on the fretboard
   const cells = [ ];
-  const strings = [ ];
-  const frets=  [];
-
   for (let fret = 0; fret < fretCount; fret++) {
     for (let string = 1; string < 6; string++) {
       cells.push({ fret, string });
     }
   }
+
+  // Frets
+  const frets=  [];
   for (let fret = 0; fret <= fretCount; fret++) {
     frets.push({ fret });
   }
+
+  // Strings. String #1 is the thinnest (highest) string
+  const strings = [ ];
   for (let string = 1; string <= 6; string++) {
-    const name = tuning[string - 1];
+    const name = tuning[string - 1];  // tuning is low to high, strings are high to low
     strings.push({ string, name });
   }
-
-    //const notes = []
-    /*const scheme = scheme_135;
-    for (n of stringNotes) {
-      notes.push({ ...n, string:1, colorScheme: scheme });
-    }*/
-    //const notes = fretNotes(tuning, "A", pentatonic, n => n.fret > fretCount, scheme_135);
-    //const notes = fretNotes(tuning, "F" + SHARP, roots, n => n.fret > fretCount, scheme_135);
-
-  
-
 
   render();
 

@@ -8,6 +8,13 @@ Click [here](https://mkiki.github.io/fretboard/) to use fretboard.
 
 # Changelog
 
+### Version 0.0.3
+_2023/11/19_
+
+* Bug: notes were flip backwards (starting from the low string instead of high string)
+* Bug: CAGED shapes checkboxes were not in order
+* Added pentatonic minor mode
+
 ### Version 0.0.2
 _2023/11/19_
 
